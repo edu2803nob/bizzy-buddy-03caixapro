@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Wallet, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useStore } from "@/contexts/StoreContext";
 
 interface CashClose {
   id: string;
@@ -11,19 +12,26 @@ interface CashClose {
 }
 
 export default function Fechamento() {
-  const [todaySales] = useState(7);
-  const [todayTotal] = useState(3847);
+  const { vendasDoDia, fecharCaixa } = useStore();
   const [history, setHistory] = useState<CashClose[]>([
     { id: "1", data: "2024-03-19", total: 4250, vendas: 9 },
     { id: "2", data: "2024-03-18", total: 3120, vendas: 6 },
     { id: "3", data: "2024-03-17", total: 5670, vendas: 12 },
   ]);
 
+  const todayTotal = vendasDoDia.reduce((s, v) => s + v.total, 0);
+  const todaySales = vendasDoDia.length;
+
   const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   const handleClose = () => {
+    const result = fecharCaixa();
+    if (!result) {
+      toast.error("Nenhuma venda para fechar");
+      return;
+    }
     const today = new Date().toISOString().split("T")[0];
-    setHistory(prev => [{ id: Date.now().toString(), data: today, total: todayTotal, vendas: todaySales }, ...prev]);
+    setHistory(prev => [{ id: Date.now().toString(), data: today, total: result.total, vendas: result.vendas }, ...prev]);
     toast.success("Caixa fechado com sucesso!");
   };
 

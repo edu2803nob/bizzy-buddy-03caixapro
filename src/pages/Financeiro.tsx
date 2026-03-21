@@ -3,33 +3,16 @@ import { Plus, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-
-interface Lancamento {
-  id: string;
-  tipo: "entrada" | "saida";
-  descricao: string;
-  valor: number;
-  categoria: string;
-  data: string;
-}
-
-const initialData: Lancamento[] = [
-  { id: "1", tipo: "entrada", descricao: "Venda PDV #1042", valor: 547.8, categoria: "Vendas", data: "2024-03-20" },
-  { id: "2", tipo: "entrada", descricao: "Venda PDV #1043", valor: 329.7, categoria: "Vendas", data: "2024-03-20" },
-  { id: "3", tipo: "saida", descricao: "Aluguel", valor: 2800, categoria: "Fixas", data: "2024-03-15" },
-  { id: "4", tipo: "saida", descricao: "Fornecedor tecidos", valor: 1450, categoria: "Fornecedores", data: "2024-03-18" },
-  { id: "5", tipo: "entrada", descricao: "Receita manual - consultoria", valor: 1200, categoria: "Serviços", data: "2024-03-19" },
-];
+import { useStore, type Lancamento } from "@/contexts/StoreContext";
 
 export default function Financeiro() {
-  const [lancamentos, setLancamentos] = useState<Lancamento[]>(initialData);
+  const { lancamentos, setLancamentos } = useStore();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ tipo: "saida" as "entrada" | "saida", descricao: "", valor: "", categoria: "", data: "" });
 
