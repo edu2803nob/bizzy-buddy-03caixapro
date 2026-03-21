@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Plus, Minus, Trash2, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { initialProdutos, type Produto } from "@/pages/Produtos";
+import { useStore } from "@/contexts/StoreContext";
+import { type Produto } from "@/pages/Produtos";
 import { toast } from "sonner";
 
 interface CartItem {
@@ -10,7 +11,8 @@ interface CartItem {
 }
 
 export default function PDV() {
-  const [produtos] = useState<Produto[]>(initialProdutos.filter(p => p.ativo && p.estoque > 0));
+  const { produtos, registrarVenda } = useStore();
+  const disponíveis = produtos.filter(p => p.ativo && p.estoque > 0);
   const [cart, setCart] = useState<CartItem[]>([]);
 
   const total = cart.reduce((acc, item) => acc + item.produto.preco * item.quantidade, 0);
@@ -19,11 +21,12 @@ export default function PDV() {
   const addToCart = (produto: Produto) => {
     setCart(prev => {
       const existing = prev.find(i => i.produto.id === produto.id);
+      const qtyInCart = existing ? existing.quantidade : 0;
+      if (qtyInCart >= produto.estoque) {
+        toast.error("Estoque insuficiente");
+        return prev;
+      }
       if (existing) {
-        if (existing.quantidade >= produto.estoque) {
-          toast.error("Estoque insuficiente");
-          return prev;
-        }
         return prev.map(i =>
           i.produto.id === produto.id ? { ...i, quantidade: i.quantidade + 1 } : i
         );
@@ -38,7 +41,8 @@ export default function PDV() {
         .map(i => {
           if (i.produto.id !== id) return i;
           const newQty = i.quantidade + delta;
-          if (newQty > i.produto.estoque) {
+          const produtoAtual = produtos.find(p => p.id === id);
+          if (produtoAtual && newQty > produtoAtual.estoque) {
             toast.error("Estoque insuficiente");
             return i;
           }
@@ -54,6 +58,8 @@ export default function PDV() {
 
   const finalizeSale = () => {
     if (cart.length === 0) return;
+    const produtosVendidos = cart.map(i => ({ id: i.produto.id, quantidade: i.quantidade }));
+    registrarVenda(total, cart.reduce((s, i) => s + i.quantidade, 0), produtosVendidos);
     toast.success(`Venda finalizada: ${fmt(total)}`);
     setCart([]);
   };
@@ -75,11 +81,10 @@ export default function PDV() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Products */}
         <div className="lg:col-span-3 space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">Produtos Disponíveis</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {produtos.map((p, i) => (
+            {disponíveis.map((p, i) => (
               <button
                 key={p.id}
                 onClick={() => addToCart(p)}
@@ -94,7 +99,6 @@ export default function PDV() {
           </div>
         </div>
 
-        {/* Cart */}
         <div className="lg:col-span-2 space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground">Carrinho ({cart.length})</h3>
           <div className="stat-card space-y-3 animate-fade-in">
@@ -108,29 +112,14 @@ export default function PDV() {
                   <p className="text-xs text-muted-foreground">{fmt(item.produto.preco)} un.</p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => updateQty(item.produto.id, -1)}
-                  >
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(item.produto.id, -1)}>
                     <Minus className="h-3 w-3" />
                   </Button>
                   <span className="text-sm font-medium w-6 text-center tabular-nums">{item.quantidade}</span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => updateQty(item.produto.id, 1)}
-                  >
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(item.produto.id, 1)}>
                     <Plus className="h-3 w-3" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-destructive hover:text-destructive"
-                    onClick={() => removeItem(item.produto.id)}
-                  >
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeItem(item.produto.id)}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>

@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
+import { StoreProvider } from "@/contexts/StoreContext";
 import Dashboard from "./pages/Dashboard";
 import Clientes from "./pages/Clientes";
 import Produtos from "./pages/Produtos";
@@ -23,21 +24,23 @@ function LayoutPage({ children }: { children: React.ReactNode }) {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<LayoutPage><Dashboard /></LayoutPage>} />
-          <Route path="/clientes" element={<LayoutPage><Clientes /></LayoutPage>} />
-          <Route path="/produtos" element={<LayoutPage><Produtos /></LayoutPage>} />
-          <Route path="/pdv" element={<LayoutPage><PDV /></LayoutPage>} />
-          <Route path="/financeiro" element={<LayoutPage><Financeiro /></LayoutPage>} />
-          <Route path="/fechamento" element={<LayoutPage><Fechamento /></LayoutPage>} />
-          <Route path="/empresas" element={<LayoutPage><Empresas /></LayoutPage>} />
-          <Route path="/usuarios" element={<LayoutPage><Usuarios /></LayoutPage>} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <StoreProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<LayoutPage><Dashboard /></LayoutPage>} />
+            <Route path="/clientes" element={<LayoutPage><Clientes /></LayoutPage>} />
+            <Route path="/produtos" element={<LayoutPage><Produtos /></LayoutPage>} />
+            <Route path="/pdv" element={<LayoutPage><PDV /></LayoutPage>} />
+            <Route path="/financeiro" element={<LayoutPage><Financeiro /></LayoutPage>} />
+            <Route path="/fechamento" element={<LayoutPage><Fechamento /></LayoutPage>} />
+            <Route path="/empresas" element={<LayoutPage><Empresas /></LayoutPage>} />
+            <Route path="/usuarios" element={<LayoutPage><Usuarios /></LayoutPage>} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </StoreProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

@@ -7,6 +7,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { useStore } from "@/contexts/StoreContext";
 
 export interface Produto {
   id: string;
@@ -27,7 +28,7 @@ export const initialProdutos: Produto[] = [
 ];
 
 export default function Produtos() {
-  const [produtos, setProdutos] = useState<Produto[]>(initialProdutos);
+  const { produtos, setProdutos } = useStore();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ nome: "", preco: "", custo: "", categoria: "", estoque: "" });
