@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Plus, ArrowUpRight, ArrowDownRight, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,11 +9,17 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useStore, type Lancamento } from "@/contexts/StoreContext";
 
 export default function Financeiro() {
   const { lancamentos, setLancamentos } = useStore();
   const [open, setOpen] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [form, setForm] = useState({ tipo: "saida" as "entrada" | "saida", descricao: "", valor: "", categoria: "", data: "" });
 
   const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -33,6 +39,15 @@ export default function Financeiro() {
     }]);
     setForm({ tipo: "saida", descricao: "", valor: "", categoria: "", data: "" });
     setOpen(false);
+  };
+
+  const handleDelete = (id: string) => {
+    setLancamentos(prev => prev.filter(l => l.id !== id));
+    if (expandedId === id) setExpandedId(null);
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedId(prev => prev === id ? null : id);
   };
 
   return (
@@ -88,22 +103,91 @@ export default function Financeiro() {
 
       <div className="stat-card p-0 overflow-hidden animate-fade-in-up" style={{ animationDelay: "240ms" }}>
         <div className="divide-y divide-border/60">
+          {lancamentos.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">Nenhum lançamento registrado.</p>
+          )}
           {lancamentos.map(l => (
-            <div key={l.id} className="flex items-center justify-between px-5 py-3.5">
-              <div className="flex items-center gap-3">
-                <div className={`p-1.5 rounded-md ${l.tipo === "entrada" ? "bg-success/10" : "bg-destructive/10"}`}>
-                  {l.tipo === "entrada"
-                    ? <ArrowUpRight className="h-4 w-4 text-success" />
-                    : <ArrowDownRight className="h-4 w-4 text-destructive" />}
+            <div key={l.id} className="group">
+              <div
+                className="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-muted/40 transition-colors"
+                onClick={() => toggleExpand(l.id)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`p-1.5 rounded-md ${l.tipo === "entrada" ? "bg-success/10" : "bg-destructive/10"}`}>
+                    {l.tipo === "entrada"
+                      ? <ArrowUpRight className="h-4 w-4 text-success" />
+                      : <ArrowDownRight className="h-4 w-4 text-destructive" />}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {expandedId === l.id
+                      ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                    <div>
+                      <p className="text-sm font-medium">{l.descricao}</p>
+                      <p className="text-xs text-muted-foreground">{l.data} · {l.categoria}</p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium">{l.descricao}</p>
-                  <p className="text-xs text-muted-foreground">{l.data} · {l.categoria}</p>
+                <div className="flex items-center gap-3">
+                  <p className={`text-sm font-semibold tabular-nums ${l.tipo === "entrada" ? "text-success" : "text-destructive"}`}>
+                    {l.tipo === "entrada" ? "+" : "-"}{fmt(l.valor)}
+                  </p>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent onClick={e => e.stopPropagation()}>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          "{l.descricao}" de {fmt(l.valor)} será removido permanentemente.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => handleDelete(l.id)}
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
-              <p className={`text-sm font-semibold tabular-nums ${l.tipo === "entrada" ? "text-success" : "text-destructive"}`}>
-                {l.tipo === "entrada" ? "+" : "-"}{fmt(l.valor)}
-              </p>
+
+              {expandedId === l.id && (
+                <div className="px-5 pb-4 pt-1 bg-muted/20 border-t border-border/40 animate-fade-in-up">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Tipo</p>
+                      <p className="font-medium capitalize">{l.tipo}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Categoria</p>
+                      <p className="font-medium">{l.categoria || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Data</p>
+                      <p className="font-medium">{l.data}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-0.5">Valor</p>
+                      <p className={`font-medium ${l.tipo === "entrada" ? "text-success" : "text-destructive"}`}>
+                        {fmt(l.valor)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
