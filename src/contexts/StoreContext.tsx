@@ -17,6 +17,13 @@ export interface VendaRegistro {
   itens: number;
 }
 
+export interface ProdutoVendido {
+  produtoId: string;
+  nome: string;
+  quantidade: number;
+  valorTotal: number;
+}
+
 const initialLancamentos: Lancamento[] = [
   { id: "1", tipo: "entrada", descricao: "Venda PDV #1042", valor: 547.8, categoria: "Vendas", data: "2024-03-20" },
   { id: "2", tipo: "entrada", descricao: "Venda PDV #1043", valor: 329.7, categoria: "Vendas", data: "2024-03-20" },
@@ -33,6 +40,7 @@ interface StoreContextType {
   vendasDoDia: VendaRegistro[];
   registrarVenda: (total: number, itens: number, produtosVendidos: { id: string; quantidade: number }[]) => void;
   fecharCaixa: () => { total: number; vendas: number } | null;
+  historicoProdutosVendidos: ProdutoVendido[];
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -41,21 +49,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [produtos, setProdutos] = useState<Produto[]>(initialProdutos);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>(initialLancamentos);
   const [vendasDoDia, setVendasDoDia] = useState<VendaRegistro[]>([]);
+  const [historicoProdutosVendidos, setHistoricoProdutosVendidos] = useState<ProdutoVendido[]>([]);
 
   const registrarVenda = (total: number, itens: number, produtosVendidos: { id: string; quantidade: number }[]) => {
-    // Descontar estoque
-    setProdutos(prev =>
-      prev.map(p => {
+    // Descontar estoque e rastrear vendas por produto
+    setProdutos(prev => {
+      const updated = prev.map(p => {
         const vendido = produtosVendidos.find(v => v.id === p.id);
         if (!vendido) return p;
         return { ...p, estoque: Math.max(0, p.estoque - vendido.quantidade) };
-      })
-    );
+      });
+      return updated;
+    });
+
+    // Registrar histórico de produtos vendidos
+    setHistoricoProdutosVendidos(prev => {
+      const next = [...prev];
+      produtosVendidos.forEach(v => {
+        const produto = produtos.find(p => p.id === v.id);
+        if (!produto) return;
+        const existing = next.find(h => h.produtoId === v.id);
+        if (existing) {
+          existing.quantidade += v.quantidade;
+          existing.valorTotal += produto.preco * v.quantidade;
+        } else {
+          next.push({
+            produtoId: v.id,
+            nome: produto.nome,
+            quantidade: v.quantidade,
+            valorTotal: produto.preco * v.quantidade,
+          });
+        }
+      });
+      return next;
+    });
 
     const hoje = new Date().toISOString().split("T")[0];
     const vendaId = Date.now().toString();
 
-    // Registrar no financeiro
     setLancamentos(prev => [
       ...prev,
       {
@@ -68,7 +99,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
     ]);
 
-    // Registrar venda do dia
     setVendasDoDia(prev => [...prev, { id: vendaId, data: hoje, total, itens }]);
   };
 
@@ -81,7 +111,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <StoreContext.Provider value={{ produtos, setProdutos, lancamentos, setLancamentos, vendasDoDia, registrarVenda, fecharCaixa }}>
+    <StoreContext.Provider value={{ produtos, setProdutos, lancamentos, setLancamentos, vendasDoDia, registrarVenda, fecharCaixa, historicoProdutosVendidos }}>
       {children}
     </StoreContext.Provider>
   );
