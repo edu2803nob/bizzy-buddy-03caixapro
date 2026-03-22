@@ -1,13 +1,18 @@
 import { useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { useStore } from "@/contexts/StoreContext";
+import { toast } from "sonner";
 
 export interface Produto {
   id: string;
@@ -27,29 +32,66 @@ export const initialProdutos: Produto[] = [
   { id: "5", nome: "Mochila Urban", preco: 189.9, custo: 75, categoria: "Acessórios", estoque: 7, ativo: true },
 ];
 
+const emptyForm = { nome: "", preco: "", custo: "", categoria: "", estoque: "" };
+
 export default function Produtos() {
   const { produtos, setProdutos } = useStore();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ nome: "", preco: "", custo: "", categoria: "", estoque: "" });
+  const [form, setForm] = useState(emptyForm);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const filtered = produtos.filter(p =>
     p.nome.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleAdd = () => {
+  const handleSave = () => {
     if (!form.nome) return;
-    setProdutos(prev => [...prev, {
-      id: Date.now().toString(),
-      nome: form.nome,
-      preco: Number(form.preco) || 0,
-      custo: Number(form.custo) || 0,
-      categoria: form.categoria,
-      estoque: Number(form.estoque) || 0,
-      ativo: true,
-    }]);
-    setForm({ nome: "", preco: "", custo: "", categoria: "", estoque: "" });
+    if (editId) {
+      setProdutos(prev => prev.map(p => p.id === editId ? {
+        ...p,
+        nome: form.nome,
+        preco: Number(form.preco) || 0,
+        custo: Number(form.custo) || 0,
+        categoria: form.categoria,
+        estoque: Number(form.estoque) || 0,
+      } : p));
+      toast.success("Produto atualizado");
+    } else {
+      setProdutos(prev => [...prev, {
+        id: Date.now().toString(),
+        nome: form.nome,
+        preco: Number(form.preco) || 0,
+        custo: Number(form.custo) || 0,
+        categoria: form.categoria,
+        estoque: Number(form.estoque) || 0,
+        ativo: true,
+      }]);
+      toast.success("Produto adicionado");
+    }
+    setForm(emptyForm);
+    setEditId(null);
     setOpen(false);
+  };
+
+  const openEdit = (p: Produto) => {
+    setEditId(p.id);
+    setForm({
+      nome: p.nome,
+      preco: String(p.preco),
+      custo: String(p.custo),
+      categoria: p.categoria,
+      estoque: String(p.estoque),
+    });
+    setOpen(true);
+  };
+
+  const handleDelete = () => {
+    if (!deleteId) return;
+    setProdutos(prev => prev.filter(p => p.id !== deleteId));
+    setDeleteId(null);
+    toast.success("Produto excluído");
   };
 
   const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -61,12 +103,12 @@ export default function Produtos() {
           <h2 className="text-xl font-semibold tracking-tight">Produtos</h2>
           <p className="text-sm text-muted-foreground mt-1">{produtos.length} produtos</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditId(null); setForm(emptyForm); } }}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Novo Produto</Button>
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>Novo Produto</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>{editId ? "Editar Produto" : "Novo Produto"}</DialogTitle></DialogHeader>
             <div className="grid gap-3 py-2">
               {([
                 { key: "nome", label: "Nome", type: "text" },
@@ -84,7 +126,7 @@ export default function Produtos() {
                   />
                 </div>
               ))}
-              <Button onClick={handleAdd} className="mt-2">Salvar</Button>
+              <Button onClick={handleSave} className="mt-2">{editId ? "Atualizar" : "Salvar"}</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -99,7 +141,7 @@ export default function Produtos() {
         {filtered.map((p, i) => (
           <div
             key={p.id}
-            className="stat-card animate-fade-in-up flex flex-col"
+            className="stat-card animate-fade-in-up flex flex-col group"
             style={{ animationDelay: `${i * 60}ms` }}
           >
             <div className="flex items-start justify-between mb-3">
@@ -107,9 +149,11 @@ export default function Produtos() {
                 <p className="font-medium text-sm">{p.nome}</p>
                 <p className="text-xs text-muted-foreground">{p.categoria}</p>
               </div>
-              <Badge variant={p.ativo ? "default" : "secondary"} className={p.ativo ? "bg-success text-success-foreground" : ""}>
-                {p.ativo ? "Ativo" : "Inativo"}
-              </Badge>
+              <div className="flex items-center gap-1">
+                <Badge variant={p.ativo ? "default" : "secondary"} className={p.ativo ? "bg-success text-success-foreground" : ""}>
+                  {p.ativo ? "Ativo" : "Inativo"}
+                </Badge>
+              </div>
             </div>
             <div className="flex items-end justify-between mt-auto">
               <div>
@@ -120,9 +164,30 @@ export default function Produtos() {
                 {p.estoque === 0 ? "Sem estoque" : `${p.estoque} un.`}
               </p>
             </div>
+            <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border/40 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button variant="ghost" size="sm" className="flex-1 h-8 text-xs" onClick={() => openEdit(p)}>
+                <Pencil className="h-3.5 w-3.5 mr-1" /> Editar
+              </Button>
+              <Button variant="ghost" size="sm" className="flex-1 h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(p.id)}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir
+              </Button>
+            </div>
           </div>
         ))}
       </div>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir produto?</AlertDialogTitle>
+            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
