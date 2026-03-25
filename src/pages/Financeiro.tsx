@@ -15,6 +15,7 @@ import {
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useStore, type Lancamento } from "@/contexts/StoreContext";
 import { format, subDays, startOfMonth, startOfYear, isAfter, isBefore, startOfDay } from "date-fns";
