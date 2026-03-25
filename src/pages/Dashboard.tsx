@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { DollarSign, TrendingUp, TrendingDown, Wallet, Trophy, Package } from "lucide-react";
+import { useState, useMemo } from "react";
+import { DollarSign, TrendingUp, TrendingDown, Wallet, Trophy, Package, CalendarDays } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
 import { useStore } from "@/contexts/StoreContext";
 import { Button } from "@/components/ui/button";
@@ -9,26 +9,62 @@ import {
 } from "recharts";
 
 type DashTab = "receitas" | "despesas" | "comparativo" | "produtos";
+type Periodo = "dia" | "semana" | "mes" | "ano" | "todos";
+
+function getDateRange(periodo: Periodo): string {
+  const now = new Date();
+  switch (periodo) {
+    case "dia":
+      return now.toISOString().split("T")[0];
+    case "semana": {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 7);
+      return d.toISOString().split("T")[0];
+    }
+    case "mes": {
+      const d = new Date(now);
+      d.setMonth(d.getMonth() - 1);
+      return d.toISOString().split("T")[0];
+    }
+    case "ano": {
+      const d = new Date(now);
+      d.setFullYear(d.getFullYear() - 1);
+      return d.toISOString().split("T")[0];
+    }
+    case "todos":
+      return "0000-00-00";
+  }
+}
 
 export default function Dashboard() {
-  const { lancamentos, historicoProdutosVendidos, produtos } = useStore();
+  const { lancamentos, historicoProdutosVendidos } = useStore();
   const [tab, setTab] = useState<DashTab>("receitas");
+  const [periodo, setPeriodo] = useState<Periodo>("todos");
 
   const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const hoje = new Date().toISOString().split("T")[0];
   const mesAtual = hoje.slice(0, 7);
 
-  const entradas = lancamentos.filter(l => l.tipo === "entrada");
-  const saidas = lancamentos.filter(l => l.tipo === "saida");
+  const filteredLancamentos = useMemo(() => {
+    if (periodo === "todos") return lancamentos;
+    if (periodo === "dia") return lancamentos.filter(l => l.data === hoje);
+    const minDate = getDateRange(periodo);
+    return lancamentos.filter(l => l.data >= minDate);
+  }, [lancamentos, periodo, hoje]);
 
-  const receitaHoje = entradas.filter(l => l.data === hoje).reduce((s, l) => s + l.valor, 0);
-  const receitaMes = entradas.filter(l => l.data.startsWith(mesAtual)).reduce((s, l) => s + l.valor, 0);
-  const despesasMes = saidas.filter(l => l.data.startsWith(mesAtual)).reduce((s, l) => s + l.valor, 0);
-  const lucroMes = receitaMes - despesasMes;
+  const entradas = filteredLancamentos.filter(l => l.tipo === "entrada");
+  const saidas = filteredLancamentos.filter(l => l.tipo === "saida");
+
+  const receitaHoje = lancamentos.filter(l => l.tipo === "entrada" && l.data === hoje).reduce((s, l) => s + l.valor, 0);
+  const receitaPeriodo = entradas.reduce((s, l) => s + l.valor, 0);
+  const despesasPeriodo = saidas.reduce((s, l) => s + l.valor, 0);
+  const lucroPeriodo = receitaPeriodo - despesasPeriodo;
+
+  const periodoLabel = periodo === "dia" ? "Hoje" : periodo === "semana" ? "Semana" : periodo === "mes" ? "Mês" : periodo === "ano" ? "Ano" : "Total";
 
   // Group by month
   const monthMap = new Map<string, { receitas: number; despesas: number }>();
-  lancamentos.forEach(l => {
+  filteredLancamentos.forEach(l => {
     const m = l.data.slice(0, 7);
     const entry = monthMap.get(m) || { receitas: 0, despesas: 0 };
     if (l.tipo === "entrada") entry.receitas += l.valor;
@@ -60,30 +96,54 @@ export default function Dashboard() {
     "hsl(200, 60%, 45%)",
   ];
 
-  const tabs: { key: DashTab; label: string; icon: React.ReactNode }[] = [
+  const dashTabs: { key: DashTab; label: string; icon: React.ReactNode }[] = [
     { key: "receitas", label: "Receitas", icon: <TrendingUp className="h-4 w-4" /> },
     { key: "despesas", label: "Despesas", icon: <TrendingDown className="h-4 w-4" /> },
     { key: "comparativo", label: "Receitas × Despesas", icon: <Wallet className="h-4 w-4" /> },
     { key: "produtos", label: "Produtos", icon: <Package className="h-4 w-4" /> },
   ];
 
+  const periodos: { key: Periodo; label: string }[] = [
+    { key: "dia", label: "Hoje" },
+    { key: "semana", label: "7 dias" },
+    { key: "mes", label: "30 dias" },
+    { key: "ano", label: "1 ano" },
+    { key: "todos", label: "Todos" },
+  ];
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">Dashboard</h2>
-        <p className="text-sm text-muted-foreground mt-1">Visão geral financeira</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">Dashboard</h2>
+          <p className="text-sm text-muted-foreground mt-1">Visão geral financeira</p>
+        </div>
+        <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg p-1">
+          <CalendarDays className="h-4 w-4 text-muted-foreground ml-2" />
+          {periodos.map(p => (
+            <Button
+              key={p.key}
+              variant={periodo === p.key ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setPeriodo(p.key)}
+              className="h-7 px-3 text-xs"
+            >
+              {p.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Receita Hoje" value={fmt(receitaHoje)} icon={DollarSign} delay={0} />
-        <StatCard title="Receita Mensal" value={fmt(receitaMes)} icon={TrendingUp} delay={80} />
-        <StatCard title="Despesas Mês" value={fmt(despesasMes)} icon={TrendingDown} delay={160} />
-        <StatCard title="Lucro Mês" value={fmt(lucroMes)} icon={Wallet} delay={240} />
+        <StatCard title={`Receita ${periodoLabel}`} value={fmt(receitaPeriodo)} icon={TrendingUp} delay={80} />
+        <StatCard title={`Despesas ${periodoLabel}`} value={fmt(despesasPeriodo)} icon={TrendingDown} delay={160} />
+        <StatCard title={`Lucro ${periodoLabel}`} value={fmt(lucroPeriodo)} icon={Wallet} delay={240} />
       </div>
 
       {/* Tab buttons */}
       <div className="flex flex-wrap gap-2">
-        {tabs.map(t => (
+        {dashTabs.map(t => (
           <Button
             key={t.key}
             variant={tab === t.key ? "default" : "outline"}
