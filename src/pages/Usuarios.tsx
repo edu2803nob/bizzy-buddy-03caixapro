@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -17,26 +18,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useStore, type UserRole, type UserPermissions, defaultPermissions } from "@/contexts/StoreContext";
 import { toast } from "sonner";
-
-type UserRole = "admin" | "operador" | "financeiro";
-
-interface Usuario {
-  id: string;
-  nome: string;
-  email: string;
-  tipo: UserRole;
-  status: "ativo" | "inativo";
-}
-
-const initialUsers: Usuario[] = [
-  { id: "1", nome: "Rafael Costa", email: "rafael@loja.com", tipo: "admin", status: "ativo" },
-  { id: "2", nome: "Juliana Mendes", email: "juliana@loja.com", tipo: "operador", status: "ativo" },
-  { id: "3", nome: "Pedro Lima", email: "pedro@loja.com", tipo: "operador", status: "ativo" },
-  { id: "4", nome: "Ana Souza", email: "ana@loja.com", tipo: "financeiro", status: "inativo" },
-];
-
-const emptyForm = { nome: "", email: "", tipo: "operador" as UserRole, status: "ativo" as "ativo" | "inativo" };
 
 const roleLabels: Record<UserRole, string> = { admin: "Admin", operador: "Operador", financeiro: "Financeiro" };
 const roleColors: Record<UserRole, string> = {
@@ -45,8 +28,13 @@ const roleColors: Record<UserRole, string> = {
   financeiro: "bg-accent text-accent-foreground",
 };
 
+const emptyForm = {
+  nome: "", email: "", tipo: "operador" as UserRole, status: "ativo" as "ativo" | "inativo",
+  permissoes: { ...defaultPermissions.operador },
+};
+
 export default function Usuarios() {
-  const [users, setUsers] = useState<Usuario[]>(initialUsers);
+  const { usuarios, setUsuarios } = useStore();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editId, setEditId] = useState<string | null>(null);
@@ -55,10 +43,10 @@ export default function Usuarios() {
   const handleSave = () => {
     if (!form.nome || !form.email) return;
     if (editId) {
-      setUsers(prev => prev.map(u => u.id === editId ? { ...u, ...form } : u));
+      setUsuarios(prev => prev.map(u => u.id === editId ? { ...u, ...form } : u));
       toast.success("Usuário atualizado");
     } else {
-      setUsers(prev => [...prev, { ...form, id: Date.now().toString() }]);
+      setUsuarios(prev => [...prev, { ...form, id: Date.now().toString() }]);
       toast.success("Usuário adicionado");
     }
     setForm(emptyForm);
@@ -66,21 +54,29 @@ export default function Usuarios() {
     setOpen(false);
   };
 
-  const openEdit = (u: Usuario) => {
+  const openEdit = (u: typeof usuarios[0]) => {
     setEditId(u.id);
-    setForm({ nome: u.nome, email: u.email, tipo: u.tipo, status: u.status });
+    setForm({ nome: u.nome, email: u.email, tipo: u.tipo, status: u.status, permissoes: { ...u.permissoes } });
     setOpen(true);
   };
 
   const handleDelete = () => {
     if (!deleteId) return;
-    setUsers(prev => prev.filter(u => u.id !== deleteId));
+    setUsuarios(prev => prev.filter(u => u.id !== deleteId));
     setDeleteId(null);
     toast.success("Usuário excluído");
   };
 
   const toggleStatus = (id: string) => {
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: u.status === "ativo" ? "inativo" : "ativo" } : u));
+    setUsuarios(prev => prev.map(u => u.id === id ? { ...u, status: u.status === "ativo" ? "inativo" : "ativo" } : u));
+  };
+
+  const handleRoleChange = (role: UserRole) => {
+    setForm(f => ({ ...f, tipo: role, permissoes: { ...defaultPermissions[role] } }));
+  };
+
+  const togglePermission = (key: keyof UserPermissions) => {
+    setForm(f => ({ ...f, permissoes: { ...f.permissoes, [key]: !f.permissoes[key] } }));
   };
 
   return (
@@ -88,7 +84,7 @@ export default function Usuarios() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Usuários</h2>
-          <p className="text-sm text-muted-foreground mt-1">{users.length} usuários cadastrados</p>
+          <p className="text-sm text-muted-foreground mt-1">{usuarios.length} usuários cadastrados</p>
         </div>
         <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setEditId(null); setForm(emptyForm); } }}>
           <DialogTrigger asChild>
@@ -101,7 +97,7 @@ export default function Usuarios() {
               <div><Label className="text-xs">Email</Label><Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
               <div>
                 <Label className="text-xs">Perfil</Label>
-                <Select value={form.tipo} onValueChange={(v: UserRole) => setForm(f => ({ ...f, tipo: v }))}>
+                <Select value={form.tipo} onValueChange={(v: UserRole) => handleRoleChange(v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Administrador (acesso total)</SelectItem>
@@ -120,6 +116,24 @@ export default function Usuarios() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Permissions toggles */}
+              <div className="space-y-3 pt-2 border-t border-border/60">
+                <Label className="text-xs font-semibold">Permissões</Label>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Acesso ao PDV</span>
+                  <Switch checked={form.permissoes.pdv} onCheckedChange={() => togglePermission("pdv")} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Acesso ao Financeiro</span>
+                  <Switch checked={form.permissoes.financeiro} onCheckedChange={() => togglePermission("financeiro")} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Administrador (acesso total)</span>
+                  <Switch checked={form.permissoes.admin} onCheckedChange={() => togglePermission("admin")} />
+                </div>
+              </div>
+
               <Button onClick={handleSave} className="mt-2">{editId ? "Atualizar" : "Salvar"}</Button>
             </div>
           </DialogContent>
@@ -133,17 +147,23 @@ export default function Usuarios() {
               <TableHead>Nome</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Perfil</TableHead>
+              <TableHead>Permissões</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map(u => (
+            {usuarios.map(u => (
               <TableRow key={u.id} className="group">
                 <TableCell className="font-medium">{u.nome}</TableCell>
                 <TableCell className="text-muted-foreground text-sm">{u.email}</TableCell>
+                <TableCell><Badge className={roleColors[u.tipo]}>{roleLabels[u.tipo]}</Badge></TableCell>
                 <TableCell>
-                  <Badge className={roleColors[u.tipo]}>{roleLabels[u.tipo]}</Badge>
+                  <div className="flex flex-wrap gap-1">
+                    {u.permissoes.pdv && <Badge variant="outline" className="text-[10px] px-1.5 py-0">PDV</Badge>}
+                    {u.permissoes.financeiro && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Fin.</Badge>}
+                    {u.permissoes.admin && <Badge variant="outline" className="text-[10px] px-1.5 py-0">Admin</Badge>}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <button onClick={() => toggleStatus(u.id)} className="cursor-pointer">
@@ -155,12 +175,8 @@ export default function Usuarios() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(u)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(u.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(u)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(u.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </TableCell>
               </TableRow>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, ArrowUpRight, ArrowDownRight, Trash2, ChevronDown, ChevronRight, CalendarIcon } from "lucide-react";
+import { Plus, ArrowUpRight, ArrowDownRight, Trash2, ChevronDown, ChevronRight, CalendarIcon, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,8 +21,17 @@ import { useStore, type Lancamento } from "@/contexts/StoreContext";
 import { format, subDays, startOfMonth, startOfYear, isAfter, isBefore, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import {
+  BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from "recharts";
 
 type Periodo = "hoje" | "7dias" | "30dias" | "mes" | "ano" | "custom";
+
+const COLORS = [
+  "hsl(152, 56%, 38%)", "hsl(220, 14%, 50%)", "hsl(38, 92%, 50%)",
+  "hsl(0, 72%, 51%)", "hsl(262, 52%, 47%)", "hsl(200, 60%, 45%)",
+];
 
 export default function Financeiro() {
   const { lancamentos, setLancamentos } = useStore();
@@ -37,14 +46,13 @@ export default function Financeiro() {
 
   const getDateRange = (p: Periodo): [Date, Date] => {
     const now = new Date();
-    const end = now;
     switch (p) {
-      case "hoje": return [startOfDay(now), end];
-      case "7dias": return [subDays(now, 7), end];
-      case "30dias": return [subDays(now, 30), end];
-      case "mes": return [startOfMonth(now), end];
-      case "ano": return [startOfYear(now), end];
-      case "custom": return [customFrom || subDays(now, 30), customTo || end];
+      case "hoje": return [startOfDay(now), now];
+      case "7dias": return [subDays(now, 7), now];
+      case "30dias": return [subDays(now, 30), now];
+      case "mes": return [startOfMonth(now), now];
+      case "ano": return [startOfYear(now), now];
+      case "custom": return [customFrom || subDays(now, 30), customTo || now];
     }
   };
 
@@ -58,15 +66,27 @@ export default function Financeiro() {
 
   const entradas = filtered.filter(l => l.tipo === "entrada").reduce((s, l) => s + l.valor, 0);
   const saidas = filtered.filter(l => l.tipo === "saida").reduce((s, l) => s + l.valor, 0);
+  const vendasCount = filtered.filter(l => l.tipo === "entrada").length;
+  const ticketMedio = vendasCount > 0 ? entradas / vendasCount : 0;
+
+  // Payment method analytics
+  const pagamentoMap = useMemo(() => {
+    const map = new Map<string, { nome: string; total: number; count: number }>();
+    filtered.filter(l => l.tipo === "entrada" && l.formaPagamentoNome).forEach(l => {
+      const key = l.formaPagamentoNome!;
+      const entry = map.get(key) || { nome: key, total: 0, count: 0 };
+      entry.total += l.valor;
+      entry.count += 1;
+      map.set(key, entry);
+    });
+    return Array.from(map.values());
+  }, [filtered]);
 
   const handleAdd = () => {
     if (!form.descricao || !form.valor) return;
     setLancamentos(prev => [...prev, {
-      id: Date.now().toString(),
-      tipo: form.tipo,
-      descricao: form.descricao,
-      valor: Number(form.valor),
-      categoria: form.categoria,
+      id: Date.now().toString(), tipo: form.tipo, descricao: form.descricao,
+      valor: Number(form.valor), categoria: form.categoria,
       data: form.data || new Date().toISOString().split("T")[0],
     }]);
     setForm({ tipo: "saida", descricao: "", valor: "", categoria: "", data: "" });
@@ -79,12 +99,9 @@ export default function Financeiro() {
   };
 
   const periodos: { key: Periodo; label: string }[] = [
-    { key: "hoje", label: "Hoje" },
-    { key: "7dias", label: "7 dias" },
-    { key: "30dias", label: "30 dias" },
-    { key: "mes", label: "Mês" },
-    { key: "ano", label: "Ano" },
-    { key: "custom", label: "Personalizado" },
+    { key: "hoje", label: "Hoje" }, { key: "7dias", label: "7 dias" },
+    { key: "30dias", label: "30 dias" }, { key: "mes", label: "Mês" },
+    { key: "ano", label: "Ano" }, { key: "custom", label: "Personalizado" },
   ];
 
   return (
@@ -92,12 +109,10 @@ export default function Financeiro() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Financeiro</h2>
-          <p className="text-sm text-muted-foreground mt-1">Entradas e saídas</p>
+          <p className="text-sm text-muted-foreground mt-1">Entradas, saídas e análise por pagamento</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Novo Lançamento</Button>
-          </DialogTrigger>
+          <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" /> Novo Lançamento</Button></DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
             <div className="grid gap-3 py-2">
@@ -105,10 +120,7 @@ export default function Financeiro() {
                 <Label className="text-xs">Tipo</Label>
                 <Select value={form.tipo} onValueChange={(v: "entrada" | "saida") => setForm(f => ({ ...f, tipo: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="entrada">Entrada</SelectItem>
-                    <SelectItem value="saida">Saída</SelectItem>
-                  </SelectContent>
+                  <SelectContent><SelectItem value="entrada">Entrada</SelectItem><SelectItem value="saida">Saída</SelectItem></SelectContent>
                 </Select>
               </div>
               <div><Label className="text-xs">Descrição</Label><Input value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} /></div>
@@ -121,94 +133,114 @@ export default function Financeiro() {
         </Dialog>
       </div>
 
-      {/* Filtros de período */}
+      {/* Filtros */}
       <div className="flex flex-wrap items-center gap-2">
         {periodos.map(p => (
-          <Button
-            key={p.key}
-            variant={periodo === p.key ? "default" : "outline"}
-            size="sm"
-            className="h-8 text-xs"
-            onClick={() => setPeriodo(p.key)}
-          >
-            {p.label}
-          </Button>
+          <Button key={p.key} variant={periodo === p.key ? "default" : "outline"} size="sm" className="h-8 text-xs" onClick={() => setPeriodo(p.key)}>{p.label}</Button>
         ))}
-
         {periodo === "custom" && (
           <div className="flex items-center gap-2 ml-2">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className={cn("h-8 text-xs gap-1", !customFrom && "text-muted-foreground")}>
-                  <CalendarIcon className="h-3.5 w-3.5" />
-                  {customFrom ? format(customFrom, "dd/MM/yyyy") : "De"}
+                  <CalendarIcon className="h-3.5 w-3.5" />{customFrom ? format(customFrom, "dd/MM/yyyy") : "De"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} locale={ptBR} className="p-3 pointer-events-auto" />
-              </PopoverContent>
+              <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} locale={ptBR} className="p-3 pointer-events-auto" /></PopoverContent>
             </Popover>
             <span className="text-xs text-muted-foreground">até</span>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className={cn("h-8 text-xs gap-1", !customTo && "text-muted-foreground")}>
-                  <CalendarIcon className="h-3.5 w-3.5" />
-                  {customTo ? format(customTo, "dd/MM/yyyy") : "Até"}
+                  <CalendarIcon className="h-3.5 w-3.5" />{customTo ? format(customTo, "dd/MM/yyyy") : "Até"}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={customTo} onSelect={setCustomTo} locale={ptBR} className="p-3 pointer-events-auto" />
-              </PopoverContent>
+              <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={customTo} onSelect={setCustomTo} locale={ptBR} className="p-3 pointer-events-auto" /></PopoverContent>
             </Popover>
           </div>
         )}
       </div>
 
       {/* Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="stat-card animate-fade-in-up">
           <p className="text-sm text-muted-foreground">Entradas</p>
           <p className="text-2xl font-semibold text-success mt-1">{fmt(entradas)}</p>
-          <p className="text-xs text-muted-foreground mt-1">{filtered.filter(l => l.tipo === "entrada").length} registros</p>
         </div>
         <div className="stat-card animate-fade-in-up" style={{ animationDelay: "80ms" }}>
           <p className="text-sm text-muted-foreground">Saídas</p>
           <p className="text-2xl font-semibold text-destructive mt-1">{fmt(saidas)}</p>
-          <p className="text-xs text-muted-foreground mt-1">{filtered.filter(l => l.tipo === "saida").length} registros</p>
         </div>
         <div className="stat-card animate-fade-in-up" style={{ animationDelay: "160ms" }}>
           <p className="text-sm text-muted-foreground">Saldo</p>
-          <p className={`text-2xl font-semibold mt-1 ${entradas - saidas >= 0 ? "text-success" : "text-destructive"}`}>
-            {fmt(entradas - saidas)}
-          </p>
+          <p className={`text-2xl font-semibold mt-1 ${entradas - saidas >= 0 ? "text-success" : "text-destructive"}`}>{fmt(entradas - saidas)}</p>
+        </div>
+        <div className="stat-card animate-fade-in-up" style={{ animationDelay: "240ms" }}>
+          <p className="text-sm text-muted-foreground">Ticket Médio</p>
+          <p className="text-2xl font-semibold mt-1">{fmt(ticketMedio)}</p>
         </div>
       </div>
 
+      {/* Payment method charts */}
+      {pagamentoMap.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="stat-card animate-fade-in-up">
+            <h3 className="text-sm font-medium mb-4 flex items-center gap-2"><CreditCard className="h-4 w-4 text-muted-foreground" />Vendas por Forma de Pagamento</h3>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={pagamentoMap}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(220,13%,91%)" />
+                <XAxis dataKey="nome" tick={{ fontSize: 11 }} stroke="hsl(220,9%,46%)" />
+                <YAxis tick={{ fontSize: 11 }} stroke="hsl(220,9%,46%)" />
+                <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid hsl(220,13%,91%)", fontSize: 13 }} formatter={(v: number, name: string) => name === "count" ? [v, "Vendas"] : [fmt(v), "Valor"]} />
+                <Legend />
+                <Bar dataKey="count" fill="hsl(220, 14%, 50%)" radius={[4, 4, 0, 0]} name="Qtd Vendas" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="stat-card animate-fade-in-up">
+            <h3 className="text-sm font-medium mb-4">Distribuição por Valor</h3>
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie data={pagamentoMap} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={4} dataKey="total" nameKey="nome">
+                  {pagamentoMap.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Pie>
+                <Tooltip formatter={(v: number) => fmt(v)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Indicadores por forma de pagamento */}
+      {pagamentoMap.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {pagamentoMap.map(p => (
+            <div key={p.nome} className="stat-card">
+              <p className="text-xs text-muted-foreground">{p.nome}</p>
+              <p className="text-lg font-semibold mt-1">{fmt(p.total)}</p>
+              <p className="text-xs text-muted-foreground">{p.count} venda(s)</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Transações */}
-      <div className="stat-card p-0 overflow-hidden animate-fade-in-up" style={{ animationDelay: "240ms" }}>
+      <div className="stat-card p-0 overflow-hidden animate-fade-in-up">
         <div className="divide-y divide-border/60">
-          {filtered.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">Nenhum lançamento no período.</p>
-          )}
+          {filtered.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Nenhum lançamento no período.</p>}
           {filtered.map(l => (
             <div key={l.id} className="group">
-              <div
-                className="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-muted/40 transition-colors"
-                onClick={() => setExpandedId(prev => prev === l.id ? null : l.id)}
-              >
+              <div className="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setExpandedId(prev => prev === l.id ? null : l.id)}>
                 <div className="flex items-center gap-3">
                   <div className={`p-1.5 rounded-md ${l.tipo === "entrada" ? "bg-success/10" : "bg-destructive/10"}`}>
-                    {l.tipo === "entrada"
-                      ? <ArrowUpRight className="h-4 w-4 text-success" />
-                      : <ArrowDownRight className="h-4 w-4 text-destructive" />}
+                    {l.tipo === "entrada" ? <ArrowUpRight className="h-4 w-4 text-success" /> : <ArrowDownRight className="h-4 w-4 text-destructive" />}
                   </div>
                   <div className="flex items-center gap-2">
-                    {expandedId === l.id
-                      ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                      : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+                    {expandedId === l.id ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
                     <div>
                       <p className="text-sm font-medium">{l.descricao}</p>
-                      <p className="text-xs text-muted-foreground">{l.data} · {l.categoria}</p>
+                      <p className="text-xs text-muted-foreground">{l.data} · {l.categoria}{l.formaPagamentoNome ? ` · ${l.formaPagamentoNome}` : ""}</p>
                     </div>
                   </div>
                 </div>
@@ -235,13 +267,13 @@ export default function Financeiro() {
                   </AlertDialog>
                 </div>
               </div>
-
               {expandedId === l.id && (
                 <div className="px-5 pb-4 pt-1 bg-muted/20 border-t border-border/40 animate-fade-in-up">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-xs">
                     <div><p className="text-muted-foreground mb-0.5">Tipo</p><p className="font-medium capitalize">{l.tipo}</p></div>
                     <div><p className="text-muted-foreground mb-0.5">Categoria</p><p className="font-medium">{l.categoria || "—"}</p></div>
                     <div><p className="text-muted-foreground mb-0.5">Data</p><p className="font-medium">{l.data}</p></div>
+                    <div><p className="text-muted-foreground mb-0.5">Pagamento</p><p className="font-medium">{l.formaPagamentoNome || "—"}</p></div>
                     <div><p className="text-muted-foreground mb-0.5">Valor</p><p className={`font-medium ${l.tipo === "entrada" ? "text-success" : "text-destructive"}`}>{fmt(l.valor)}</p></div>
                   </div>
                 </div>
