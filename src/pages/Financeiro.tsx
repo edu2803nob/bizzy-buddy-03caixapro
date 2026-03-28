@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, ArrowUpRight, ArrowDownRight, Trash2, ChevronDown, ChevronRight, CalendarIcon, CreditCard } from "lucide-react";
+import { Plus, ArrowUpRight, ArrowDownRight, Trash2, ChevronDown, ChevronRight, CalendarIcon, CreditCard, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useStore, type Lancamento } from "@/contexts/StoreContext";
 import { format, subDays, startOfMonth, startOfYear, isAfter, isBefore, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -25,6 +28,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
+import { toast } from "sonner";
 
 type Periodo = "hoje" | "7dias" | "30dias" | "mes" | "ano" | "custom";
 
@@ -69,7 +73,6 @@ export default function Financeiro() {
   const vendasCount = filtered.filter(l => l.tipo === "entrada").length;
   const ticketMedio = vendasCount > 0 ? entradas / vendasCount : 0;
 
-  // Payment method analytics
   const pagamentoMap = useMemo(() => {
     const map = new Map<string, { nome: string; total: number; count: number }>();
     filtered.filter(l => l.tipo === "entrada" && l.formaPagamentoNome).forEach(l => {
@@ -98,6 +101,72 @@ export default function Financeiro() {
     if (expandedId === id) setExpandedId(null);
   };
 
+  // CSV export
+  const exportCSV = () => {
+    if (filtered.length === 0) { toast.error("Nenhum dado para exportar"); return; }
+    const header = "Tipo,Descrição,Categoria,Data,Valor,Forma de Pagamento\n";
+    const rows = filtered.map(l =>
+      `${l.tipo === "entrada" ? "Entrada" : "Saída"},"${l.descricao}","${l.categoria}",${l.data},${l.valor.toFixed(2)},"${l.formaPagamentoNome || ""}"`
+    ).join("\n");
+    const summary = `\n\nResumo\nEntradas,${entradas.toFixed(2)}\nSaídas,${saidas.toFixed(2)}\nSaldo,${(entradas - saidas).toFixed(2)}\nTicket Médio,${ticketMedio.toFixed(2)}`;
+    const blob = new Blob(["\uFEFF" + header + rows + summary], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `financeiro_${periodo}_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    toast.success("CSV exportado com sucesso");
+  };
+
+  // PDF export
+  const exportPDF = () => {
+    if (filtered.length === 0) { toast.error("Nenhum dado para exportar"); return; }
+    const periodoLabel = { hoje: "Hoje", "7dias": "Últimos 7 dias", "30dias": "Últimos 30 dias", mes: "Mês atual", ano: "Ano atual", custom: "Personalizado" }[periodo];
+    
+    const html = `
+      <html><head><meta charset="utf-8"><title>Relatório Financeiro</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:40px;color:#222;font-size:12px}
+        h1{font-size:20px;margin-bottom:4px}
+        .subtitle{color:#666;margin-bottom:24px}
+        .cards{display:flex;gap:16px;margin-bottom:24px}
+        .card{border:1px solid #ddd;border-radius:8px;padding:12px 16px;flex:1}
+        .card-label{color:#666;font-size:11px}
+        .card-value{font-size:18px;font-weight:600;margin-top:4px}
+        .green{color:#2d8a56}
+        .red{color:#c0392b}
+        table{width:100%;border-collapse:collapse;margin-top:8px}
+        th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #eee;font-size:11px}
+        th{background:#f5f5f5;font-weight:600}
+        .right{text-align:right}
+        @media print{body{padding:20px}}
+      </style></head><body>
+      <h1>Relatório Financeiro</h1>
+      <p class="subtitle">Período: ${periodoLabel} — Gerado em ${format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+      <div class="cards">
+        <div class="card"><div class="card-label">Entradas</div><div class="card-value green">${fmt(entradas)}</div></div>
+        <div class="card"><div class="card-label">Saídas</div><div class="card-value red">${fmt(saidas)}</div></div>
+        <div class="card"><div class="card-label">Saldo</div><div class="card-value ${entradas - saidas >= 0 ? 'green' : 'red'}">${fmt(entradas - saidas)}</div></div>
+        <div class="card"><div class="card-label">Ticket Médio</div><div class="card-value">${fmt(ticketMedio)}</div></div>
+      </div>
+      <table><thead><tr><th>Tipo</th><th>Descrição</th><th>Categoria</th><th>Data</th><th>Pagamento</th><th class="right">Valor</th></tr></thead><tbody>
+      ${filtered.map(l => `<tr>
+        <td>${l.tipo === "entrada" ? "Entrada" : "Saída"}</td>
+        <td>${l.descricao}</td><td>${l.categoria}</td><td>${l.data}</td>
+        <td>${l.formaPagamentoNome || "—"}</td>
+        <td class="right ${l.tipo === "entrada" ? "green" : "red"}">${l.tipo === "entrada" ? "+" : "-"}${fmt(l.valor)}</td>
+      </tr>`).join("")}
+      </tbody></table>
+      </body></html>`;
+    
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.onload = () => { printWindow.print(); };
+    }
+    toast.success("Relatório PDF aberto para impressão");
+  };
+
   const periodos: { key: Periodo; label: string }[] = [
     { key: "hoje", label: "Hoje" }, { key: "7dias", label: "7 dias" },
     { key: "30dias", label: "30 dias" }, { key: "mes", label: "Mês" },
@@ -111,26 +180,41 @@ export default function Financeiro() {
           <h2 className="text-xl font-semibold tracking-tight">Financeiro</h2>
           <p className="text-sm text-muted-foreground mt-1">Entradas, saídas e análise por pagamento</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" /> Novo Lançamento</Button></DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
-            <div className="grid gap-3 py-2">
-              <div>
-                <Label className="text-xs">Tipo</Label>
-                <Select value={form.tipo} onValueChange={(v: "entrada" | "saida") => setForm(f => ({ ...f, tipo: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="entrada">Entrada</SelectItem><SelectItem value="saida">Saída</SelectItem></SelectContent>
-                </Select>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-1" /> Exportar</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportCSV}>
+                <FileText className="h-4 w-4 mr-2" /> Exportar CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportPDF}>
+                <FileText className="h-4 w-4 mr-2" /> Exportar PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" /> Novo Lançamento</Button></DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Novo Lançamento</DialogTitle></DialogHeader>
+              <div className="grid gap-3 py-2">
+                <div>
+                  <Label className="text-xs">Tipo</Label>
+                  <Select value={form.tipo} onValueChange={(v: "entrada" | "saida") => setForm(f => ({ ...f, tipo: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="entrada">Entrada</SelectItem><SelectItem value="saida">Saída</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                <div><Label className="text-xs">Descrição</Label><Input value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} /></div>
+                <div><Label className="text-xs">Valor</Label><Input type="number" value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))} /></div>
+                <div><Label className="text-xs">Categoria</Label><Input value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))} /></div>
+                <div><Label className="text-xs">Data</Label><Input type="date" value={form.data} onChange={e => setForm(f => ({ ...f, data: e.target.value }))} /></div>
+                <Button onClick={handleAdd} className="mt-2">Salvar</Button>
               </div>
-              <div><Label className="text-xs">Descrição</Label><Input value={form.descricao} onChange={e => setForm(f => ({ ...f, descricao: e.target.value }))} /></div>
-              <div><Label className="text-xs">Valor</Label><Input type="number" value={form.valor} onChange={e => setForm(f => ({ ...f, valor: e.target.value }))} /></div>
-              <div><Label className="text-xs">Categoria</Label><Input value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))} /></div>
-              <div><Label className="text-xs">Data</Label><Input type="date" value={form.data} onChange={e => setForm(f => ({ ...f, data: e.target.value }))} /></div>
-              <Button onClick={handleAdd} className="mt-2">Salvar</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -181,7 +265,7 @@ export default function Financeiro() {
         </div>
       </div>
 
-      {/* Payment method charts */}
+      {/* Charts */}
       {pagamentoMap.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="stat-card animate-fade-in-up">
@@ -212,7 +296,7 @@ export default function Financeiro() {
         </div>
       )}
 
-      {/* Indicadores por forma de pagamento */}
+      {/* Payment indicators */}
       {pagamentoMap.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {pagamentoMap.map(p => (
@@ -225,7 +309,7 @@ export default function Financeiro() {
         </div>
       )}
 
-      {/* Transações */}
+      {/* Transactions */}
       <div className="stat-card p-0 overflow-hidden animate-fade-in-up">
         <div className="divide-y divide-border/60">
           {filtered.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Nenhum lançamento no período.</p>}
