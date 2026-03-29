@@ -27,19 +27,19 @@ export interface Produto {
   custo: number;
   categoria: string;
   estoque: number;
+  estoqueMinimo: number;
   ativo: boolean;
 }
 
 export const initialProdutos: Produto[] = [
-  { id: "1", nome: "Camiseta Básica", preco: 59.9, custo: 22, categoria: "Vestuário", estoque: 48, ativo: true },
-  { id: "2", nome: "Calça Jeans", preco: 149.9, custo: 65, categoria: "Vestuário", estoque: 23, ativo: true },
-  { id: "3", nome: "Tênis Runner", preco: 299.9, custo: 120, categoria: "Calçados", estoque: 12, ativo: true },
-  { id: "4", nome: "Boné Snapback", preco: 49.9, custo: 15, categoria: "Acessórios", estoque: 0, ativo: false },
-  { id: "5", nome: "Mochila Urban", preco: 189.9, custo: 75, categoria: "Acessórios", estoque: 7, ativo: true },
+  { id: "1", nome: "Camiseta Básica", preco: 59.9, custo: 22, categoria: "Vestuário", estoque: 48, estoqueMinimo: 10, ativo: true },
+  { id: "2", nome: "Calça Jeans", preco: 149.9, custo: 65, categoria: "Vestuário", estoque: 23, estoqueMinimo: 10, ativo: true },
+  { id: "3", nome: "Tênis Runner", preco: 299.9, custo: 120, categoria: "Calçados", estoque: 12, estoqueMinimo: 5, ativo: true },
+  { id: "4", nome: "Boné Snapback", preco: 49.9, custo: 15, categoria: "Acessórios", estoque: 0, estoqueMinimo: 10, ativo: false },
+  { id: "5", nome: "Mochila Urban", preco: 189.9, custo: 75, categoria: "Acessórios", estoque: 7, estoqueMinimo: 10, ativo: true },
 ];
 
-const LOW_STOCK_THRESHOLD = 10;
-const emptyForm = { nome: "", preco: "", custo: "", categoria: "", estoque: "" };
+const emptyForm = { nome: "", preco: "", custo: "", categoria: "", estoque: "", estoqueMinimo: "10" };
 
 export default function Produtos() {
   const { produtos, setProdutos } = useStore();
@@ -65,8 +65,8 @@ export default function Produtos() {
       if (filterStatus === "ativo" && !p.ativo) return false;
       if (filterStatus === "inativo" && p.ativo) return false;
       if (filterEstoque === "sem" && p.estoque !== 0) return false;
-      if (filterEstoque === "baixo" && (p.estoque === 0 || p.estoque >= LOW_STOCK_THRESHOLD)) return false;
-      if (filterEstoque === "normal" && p.estoque < LOW_STOCK_THRESHOLD) return false;
+      if (filterEstoque === "baixo" && (p.estoque === 0 || p.estoque > p.estoqueMinimo)) return false;
+      if (filterEstoque === "normal" && p.estoque <= p.estoqueMinimo) return false;
       return true;
     });
   }, [produtos, search, filterCategoria, filterStatus, filterEstoque]);
@@ -74,10 +74,9 @@ export default function Produtos() {
   const paginatedData = filtered.slice(page * perPage, (page + 1) * perPage);
   const totalPages = Math.ceil(filtered.length / perPage);
 
-  // Indicators
   const totalProdutos = produtos.length;
   const semEstoque = produtos.filter(p => p.estoque === 0).length;
-  const estoqueBaixo = produtos.filter(p => p.estoque > 0 && p.estoque < LOW_STOCK_THRESHOLD).length;
+  const estoqueBaixo = produtos.filter(p => p.estoque > 0 && p.estoque <= p.estoqueMinimo).length;
   const valorTotalEstoque = produtos.reduce((s, p) => s + p.custo * p.estoque, 0);
 
   const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -90,13 +89,15 @@ export default function Produtos() {
         ...p, nome: form.nome, preco: Number(form.preco) || 0,
         custo: Number(form.custo) || 0, categoria: form.categoria,
         estoque: Number(form.estoque) || 0,
+        estoqueMinimo: Number(form.estoqueMinimo) || 10,
       } : p));
       toast.success("Produto atualizado");
     } else {
       setProdutos(prev => [...prev, {
         id: Date.now().toString(), nome: form.nome,
         preco: Number(form.preco) || 0, custo: Number(form.custo) || 0,
-        categoria: form.categoria, estoque: Number(form.estoque) || 0, ativo: true,
+        categoria: form.categoria, estoque: Number(form.estoque) || 0,
+        estoqueMinimo: Number(form.estoqueMinimo) || 10, ativo: true,
       }]);
       toast.success("Produto adicionado");
     }
@@ -105,7 +106,7 @@ export default function Produtos() {
 
   const openEdit = (p: Produto) => {
     setEditId(p.id);
-    setForm({ nome: p.nome, preco: String(p.preco), custo: String(p.custo), categoria: p.categoria, estoque: String(p.estoque) });
+    setForm({ nome: p.nome, preco: String(p.preco), custo: String(p.custo), categoria: p.categoria, estoque: String(p.estoque), estoqueMinimo: String(p.estoqueMinimo) });
     setOpen(true);
   };
 
@@ -129,15 +130,14 @@ export default function Produtos() {
     setAdjustId(null); setAdjustQty("");
   };
 
-  const getStockBadge = (estoque: number) => {
-    if (estoque === 0) return <Badge variant="destructive" className="text-xs">Sem estoque</Badge>;
-    if (estoque < LOW_STOCK_THRESHOLD) return <Badge className="bg-warning text-warning-foreground text-xs">{estoque} un.</Badge>;
-    return <span className="text-sm tabular-nums">{estoque} un.</span>;
+  const getStockBadge = (p: Produto) => {
+    if (p.estoque === 0) return <Badge variant="destructive" className="text-xs">Sem estoque</Badge>;
+    if (p.estoque <= p.estoqueMinimo) return <Badge className="bg-warning text-warning-foreground text-xs">{p.estoque} un.</Badge>;
+    return <span className="text-sm tabular-nums">{p.estoque} un.</span>;
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Produtos</h2>
@@ -151,11 +151,12 @@ export default function Produtos() {
             <DialogHeader><DialogTitle>{editId ? "Editar Produto" : "Novo Produto"}</DialogTitle></DialogHeader>
             <div className="grid gap-3 py-2">
               {([
-                { key: "nome", label: "Nome", type: "text" },
+                { key: "nome", label: "Nome *", type: "text" },
                 { key: "preco", label: "Preço de Venda", type: "number" },
                 { key: "custo", label: "Custo", type: "number" },
                 { key: "categoria", label: "Categoria", type: "text" },
                 { key: "estoque", label: "Estoque", type: "number" },
+                { key: "estoqueMinimo", label: "Estoque Mínimo", type: "number" },
               ] as const).map(f => (
                 <div key={f.key}>
                   <Label className="text-xs">{f.label}</Label>
@@ -190,12 +191,11 @@ export default function Produtos() {
         </div>
       </div>
 
-      {/* Low stock notification */}
       {estoqueBaixo > 0 && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-warning/40 bg-warning/5 animate-fade-in-up">
           <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
           <p className="text-sm">
-            <span className="font-medium">{estoqueBaixo} produto(s)</span> com estoque baixo (menos de {LOW_STOCK_THRESHOLD} unidades).
+            <span className="font-medium">{estoqueBaixo} produto(s)</span> com estoque baixo (abaixo do mínimo configurado).
             {semEstoque > 0 && <> <span className="font-medium text-destructive">{semEstoque}</span> sem estoque.</>}
           </p>
         </div>
@@ -245,13 +245,14 @@ export default function Produtos() {
               <TableHead className="text-right">Lucro</TableHead>
               <TableHead className="text-right">Margem</TableHead>
               <TableHead className="text-center">Estoque</TableHead>
+              <TableHead className="text-center">Mín.</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginatedData.length === 0 && (
-              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhum produto encontrado.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Nenhum produto encontrado.</TableCell></TableRow>
             )}
             {paginatedData.map(p => {
               const lucro = p.preco - p.custo;
@@ -264,24 +265,19 @@ export default function Produtos() {
                   <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(p.custo)}</TableCell>
                   <TableCell className={`text-right tabular-nums ${lucro >= 0 ? "text-success" : "text-destructive"}`}>{fmt(lucro)}</TableCell>
                   <TableCell className={`text-right tabular-nums ${margem >= 30 ? "text-success" : margem >= 15 ? "text-warning" : "text-destructive"}`}>{fmtPct(margem)}</TableCell>
-                  <TableCell className="text-center">{getStockBadge(p.estoque)}</TableCell>
+                  <TableCell className="text-center">{getStockBadge(p)}</TableCell>
+                  <TableCell className="text-center text-xs text-muted-foreground">{p.estoqueMinimo}</TableCell>
                   <TableCell className="text-center">
                     <Badge variant={p.ativo ? "default" : "secondary"} className={p.ativo ? "bg-success text-success-foreground" : ""}>{p.ativo ? "Ativo" : "Inativo"}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar" onClick={() => openEdit(p)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Ajustar estoque" onClick={() => { setAdjustId(p.id); setAdjustQty(""); }}>
-                        <PackageMinus className="h-3.5 w-3.5" />
-                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar" onClick={() => openEdit(p)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Ajustar estoque" onClick={() => { setAdjustId(p.id); setAdjustQty(""); }}><PackageMinus className="h-3.5 w-3.5" /></Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" title={p.ativo ? "Inativar" : "Ativar"} onClick={() => handleToggleStatus(p.id)}>
                         {p.ativo ? <ToggleRight className="h-3.5 w-3.5 text-success" /> : <ToggleLeft className="h-3.5 w-3.5 text-muted-foreground" />}
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10" title="Excluir" onClick={() => setDeleteId(p.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10" title="Excluir" onClick={() => setDeleteId(p.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -290,7 +286,6 @@ export default function Produtos() {
           </TableBody>
         </Table>
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-5 py-3 border-t border-border/60">
             <p className="text-xs text-muted-foreground">{filtered.length} produto(s) · Página {page + 1} de {totalPages}</p>
@@ -302,7 +297,6 @@ export default function Produtos() {
         )}
       </div>
 
-      {/* Delete dialog */}
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -316,7 +310,6 @@ export default function Produtos() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Adjust stock dialog */}
       <Dialog open={!!adjustId} onOpenChange={(o) => { if (!o) { setAdjustId(null); setAdjustQty(""); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Ajustar Estoque</DialogTitle></DialogHeader>

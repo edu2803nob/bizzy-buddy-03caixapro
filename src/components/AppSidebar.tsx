@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Users, UserCircle, ShoppingCart, Package,
-  DollarSign, Wallet, Building2, CreditCard,
+  DollarSign, Wallet, Building2, CreditCard, Landmark,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useStore } from "@/contexts/StoreContext";
@@ -15,6 +15,7 @@ const allItems = [
   { title: "Produtos", url: "/produtos", icon: Package, section: "principal", requires: null },
   { title: "PDV", url: "/pdv", icon: ShoppingCart, section: "principal", requires: "pdv" as const },
   { title: "Financeiro", url: "/financeiro", icon: DollarSign, section: "financeiro", requires: "financeiro" as const },
+  { title: "Contas Bancárias", url: "/financeiro/contas-bancarias", icon: Landmark, section: "financeiro", requires: "financeiro" as const },
   { title: "Fechamento", url: "/fechamento", icon: Wallet, section: "financeiro", requires: "financeiro" as const },
   { title: "Pagamentos", url: "/formas-pagamento", icon: CreditCard, section: "financeiro", requires: "admin" as const },
   { title: "Empresas", url: "/empresas", icon: Building2, section: "admin", requires: "admin" as const },
@@ -45,10 +46,10 @@ export function AppSidebar() {
         <div className="px-4 py-5">
           {!collapsed ? (
             <h1 className="text-lg font-semibold text-sidebar-accent-foreground tracking-tight">
-              ERP<span className="text-sidebar-primary">.</span>sys
+              CaixaPro<span className="text-sidebar-primary">.</span>
             </h1>
           ) : (
-            <span className="text-sidebar-primary font-bold text-lg">E</span>
+            <span className="text-sidebar-primary font-bold text-lg">C</span>
           )}
         </div>
 

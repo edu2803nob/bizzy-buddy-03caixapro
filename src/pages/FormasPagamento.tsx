@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, CreditCard, Banknote, QrCode, FileText } from "lucide-react";
+import { Plus, Pencil, Trash2, CreditCard, Banknote, QrCode, FileText, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,7 @@ export interface FormaPagamento {
   nome: string;
   tipo: TipoPagamento;
   ativo: boolean;
+  contaBancariaId?: string;
 }
 
 export const initialFormasPagamento: FormaPagamento[] = [
@@ -49,22 +50,24 @@ const tipoIcons: Record<TipoPagamento, React.ReactNode> = {
   boleto: <FileText className="h-4 w-4" />,
 };
 
-const emptyForm = { nome: "", tipo: "dinheiro" as TipoPagamento };
+const emptyForm = { nome: "", tipo: "dinheiro" as TipoPagamento, contaBancariaId: "" };
 
 export default function FormasPagamento() {
-  const { formasPagamento, setFormasPagamento, lancamentos } = useStore();
+  const { formasPagamento, setFormasPagamento, lancamentos, contasBancarias } = useStore();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editId, setEditId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  const contasAtivas = contasBancarias.filter(c => c.ativo);
+
   const handleSave = () => {
     if (!form.nome) return;
     if (editId) {
-      setFormasPagamento(prev => prev.map(f => f.id === editId ? { ...f, nome: form.nome, tipo: form.tipo } : f));
+      setFormasPagamento(prev => prev.map(f => f.id === editId ? { ...f, nome: form.nome, tipo: form.tipo, contaBancariaId: form.contaBancariaId || undefined } : f));
       toast.success("Forma de pagamento atualizada");
     } else {
-      setFormasPagamento(prev => [...prev, { id: Date.now().toString(), nome: form.nome, tipo: form.tipo, ativo: true }]);
+      setFormasPagamento(prev => [...prev, { id: Date.now().toString(), nome: form.nome, tipo: form.tipo, ativo: true, contaBancariaId: form.contaBancariaId || undefined }]);
       toast.success("Forma de pagamento criada");
     }
     setForm(emptyForm);
@@ -74,13 +77,11 @@ export default function FormasPagamento() {
 
   const openEdit = (fp: FormaPagamento) => {
     setEditId(fp.id);
-    setForm({ nome: fp.nome, tipo: fp.tipo });
+    setForm({ nome: fp.nome, tipo: fp.tipo, contaBancariaId: fp.contaBancariaId || "" });
     setOpen(true);
   };
 
-  const isInUse = (id: string) => {
-    return lancamentos.some(l => l.formaPagamentoId === id);
-  };
+  const isInUse = (id: string) => lancamentos.some(l => l.formaPagamentoId === id);
 
   const handleDelete = () => {
     if (!deleteId) return;
@@ -98,6 +99,11 @@ export default function FormasPagamento() {
     setFormasPagamento(prev => prev.map(f => f.id === id ? { ...f, ativo: !f.ativo } : f));
   };
 
+  const getContaNome = (id?: string) => {
+    if (!id) return "—";
+    return contasBancarias.find(c => c.id === id)?.nome || "—";
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -112,7 +118,7 @@ export default function FormasPagamento() {
           <DialogContent>
             <DialogHeader><DialogTitle>{editId ? "Editar Forma de Pagamento" : "Nova Forma de Pagamento"}</DialogTitle></DialogHeader>
             <div className="grid gap-3 py-2">
-              <div><Label className="text-xs">Nome</Label><Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Pix Banco X" /></div>
+              <div><Label className="text-xs">Nome *</Label><Input value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Pix Banco X" /></div>
               <div>
                 <Label className="text-xs">Tipo</Label>
                 <Select value={form.tipo} onValueChange={(v: TipoPagamento) => setForm(f => ({ ...f, tipo: v }))}>
@@ -123,6 +129,16 @@ export default function FormasPagamento() {
                     <SelectItem value="credito">Cartão de Crédito</SelectItem>
                     <SelectItem value="debito">Cartão de Débito</SelectItem>
                     <SelectItem value="boleto">Boleto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs flex items-center gap-1"><Building2 className="h-3 w-3" /> Conta Bancária de Destino</Label>
+                <Select value={form.contaBancariaId} onValueChange={v => setForm(f => ({ ...f, contaBancariaId: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Nenhuma (opcional)" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhuma</SelectItem>
+                    {contasAtivas.map(c => <SelectItem key={c.id} value={c.id}>{c.nome} — {c.banco || c.tipo}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -138,6 +154,7 @@ export default function FormasPagamento() {
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>Tipo</TableHead>
+              <TableHead>Conta Bancária</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -151,25 +168,21 @@ export default function FormasPagamento() {
                     <span className="font-medium">{fp.nome}</span>
                   </div>
                 </TableCell>
+                <TableCell><Badge variant="secondary">{tipoLabels[fp.tipo]}</Badge></TableCell>
                 <TableCell>
-                  <Badge variant="secondary">{tipoLabels[fp.tipo]}</Badge>
+                  <span className="text-xs text-muted-foreground">{getContaNome(fp.contaBancariaId)}</span>
                 </TableCell>
                 <TableCell>
                   <button onClick={() => toggleStatus(fp.id)} className="cursor-pointer">
-                    <Badge variant={fp.ativo ? "default" : "secondary"}
-                      className={fp.ativo ? "bg-success text-success-foreground" : ""}>
+                    <Badge variant={fp.ativo ? "default" : "secondary"} className={fp.ativo ? "bg-success text-success-foreground" : ""}>
                       {fp.ativo ? "Ativo" : "Inativo"}
                     </Badge>
                   </button>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(fp)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(fp.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(fp)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleteId(fp.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -183,9 +196,7 @@ export default function FormasPagamento() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir forma de pagamento?</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteId && isInUse(deleteId)
-                ? "Esta forma de pagamento está em uso e não pode ser excluída."
-                : "Esta ação não pode ser desfeita."}
+              {deleteId && isInUse(deleteId) ? "Esta forma de pagamento está em uso e não pode ser excluída." : "Esta ação não pode ser desfeita."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
