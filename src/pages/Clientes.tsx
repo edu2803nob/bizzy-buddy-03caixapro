@@ -10,28 +10,13 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
+import { useStore } from "@/contexts/StoreContext";
 import { toast } from "sonner";
-
-interface Cliente {
-  id: string;
-  nome: string;
-  telefone: string;
-  email: string;
-  cpf: string;
-  origem: string;
-  observacao: string;
-}
-
-const initialClientes: Cliente[] = [
-  { id: "1", nome: "Maria Silva", telefone: "(11) 99876-5432", email: "maria@email.com", cpf: "123.456.789-00", origem: "Indicação", observacao: "" },
-  { id: "2", nome: "Carlos Souza", telefone: "(21) 98765-4321", email: "carlos@email.com", cpf: "987.654.321-00", origem: "Instagram", observacao: "Cliente VIP" },
-  { id: "3", nome: "Ana Oliveira", telefone: "(31) 97654-3210", email: "ana@email.com", cpf: "456.789.123-00", origem: "Google", observacao: "" },
-];
 
 const emptyForm = { nome: "", telefone: "", email: "", cpf: "", origem: "", observacao: "" };
 
 export default function Clientes() {
-  const [clientes, setClientes] = useState<Cliente[]>(initialClientes);
+  const { clientes, setClientes } = useStore();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -58,7 +43,7 @@ export default function Clientes() {
     setOpen(false);
   };
 
-  const openEdit = (c: Cliente) => {
+  const openEdit = (c: typeof clientes[0]) => {
     setEditId(c.id);
     setForm({ nome: c.nome, telefone: c.telefone, email: c.email, cpf: c.cpf, origem: c.origem, observacao: c.observacao });
     setOpen(true);
@@ -73,7 +58,7 @@ export default function Clientes() {
   };
 
   const fieldLabels: Record<string, string> = {
-    nome: "Nome", telefone: "Telefone", email: "Email", cpf: "CPF", origem: "Origem", observacao: "Observação",
+    nome: "Nome *", telefone: "Telefone", email: "Email", cpf: "CPF", origem: "Origem", observacao: "Observação",
   };
 
   return (
@@ -93,11 +78,7 @@ export default function Clientes() {
               {(["nome", "telefone", "email", "cpf", "origem", "observacao"] as const).map(field => (
                 <div key={field}>
                   <Label className="text-xs">{fieldLabels[field]}</Label>
-                  <Input
-                    value={form[field]}
-                    onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-                    placeholder={fieldLabels[field]}
-                  />
+                  <Input value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} placeholder={fieldLabels[field].replace(" *", "")} />
                 </div>
               ))}
               <Button onClick={handleSave} className="mt-2">{editId ? "Atualizar" : "Salvar"}</Button>
@@ -118,16 +99,9 @@ export default function Clientes() {
           )}
           {filtered.map(c => (
             <div key={c.id} className="group">
-              <div
-                className="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-muted/40 transition-colors"
-                onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
-              >
+              <div className="flex items-center justify-between px-5 py-3.5 cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}>
                 <div className="flex items-center gap-2">
-                  {expandedId === c.id ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                  )}
+                  {expandedId === c.id ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
                   <div>
                     <p className="text-sm font-medium">{c.nome}</p>
                     <p className="text-xs text-muted-foreground">{c.email}</p>
@@ -135,23 +109,10 @@ export default function Clientes() {
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-muted-foreground hidden sm:inline mr-2">{c.telefone}</span>
-                  <Button
-                    variant="ghost" size="icon"
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => { e.stopPropagation(); openEdit(c); }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost" size="icon"
-                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={(e) => { e.stopPropagation(); setDeleteId(c.id); }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); openEdit(c); }}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); setDeleteId(c.id); }}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </div>
-
               {expandedId === c.id && (
                 <div className="px-5 pb-4 pt-1 bg-muted/20 border-t border-border/40 animate-fade-in-up">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
