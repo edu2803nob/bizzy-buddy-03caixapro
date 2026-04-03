@@ -90,6 +90,65 @@ export interface Cliente {
   observacao: string;
 }
 
+export interface ContaPagarReceber {
+  id: string;
+  tipo: "pagar" | "receber";
+  descricao: string;
+  valor: number;
+  vencimento: string;
+  status: "aberto" | "pago" | "vencido" | "cancelado";
+  categoria: string;
+  formaPagamentoId?: string;
+  contaBancariaId?: string;
+  dataPagamento?: string;
+  observacao: string;
+}
+
+export interface PriceHistory {
+  id: string;
+  produtoId: string;
+  oldPrice: number;
+  newPrice: number;
+  oldCost: number;
+  newCost: number;
+  changedAt: string;
+  changedByUserId: string;
+  changedByUserName: string;
+}
+
+export interface Fornecedor {
+  id: string;
+  nome: string;
+  cnpj: string;
+  telefone: string;
+  email: string;
+  observacao: string;
+  ativo: boolean;
+}
+
+export interface OrdemCompra {
+  id: string;
+  fornecedorId: string;
+  fornecedorNome: string;
+  status: "rascunho" | "enviada" | "recebida" | "cancelada";
+  itens: { produtoId: string; produtoNome: string; quantidade: number; custoUnitario: number }[];
+  total: number;
+  data: string;
+  observacao: string;
+}
+
+export interface AuditLog {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  oldValue: Record<string, unknown> | null;
+  newValue: Record<string, unknown> | null;
+  timestamp: string;
+}
+
 const defaultPermissions: Record<UserRole, UserPermissions> = {
   admin: { pdv: true, financeiro: true, admin: true },
   operador: { pdv: true, financeiro: false, admin: false },
@@ -135,6 +194,7 @@ interface StoreContextType {
   lancamentos: Lancamento[];
   setLancamentos: React.Dispatch<React.SetStateAction<Lancamento[]>>;
   vendasDoDia: VendaRegistro[];
+  allVendas: VendaRegistro[];
   registrarVenda: (params: RegistrarVendaParams) => void;
   fecharCaixa: () => { total: number; vendas: number } | null;
   historicoProdutosVendidos: ProdutoVendido[];
@@ -150,6 +210,17 @@ interface StoreContextType {
   registrarMovimentacao: (contaId: string, tipo: "entrada" | "saida", valor: number, descricao: string, origem: MovimentacaoBancaria["origem"], origemId: string) => void;
   clientes: Cliente[];
   setClientes: React.Dispatch<React.SetStateAction<Cliente[]>>;
+  contasPagarReceber: ContaPagarReceber[];
+  setContasPagarReceber: React.Dispatch<React.SetStateAction<ContaPagarReceber[]>>;
+  priceHistory: PriceHistory[];
+  addPriceHistory: (entry: Omit<PriceHistory, "id">) => void;
+  fornecedores: Fornecedor[];
+  setFornecedores: React.Dispatch<React.SetStateAction<Fornecedor[]>>;
+  ordensCompra: OrdemCompra[];
+  setOrdensCompra: React.Dispatch<React.SetStateAction<OrdemCompra[]>>;
+  receberOrdemCompra: (ordemId: string) => void;
+  auditLogs: AuditLog[];
+  addAuditLog: (log: Omit<AuditLog, "id" | "timestamp">) => void;
 }
 
 const StoreContext = createContext<StoreContextType | null>(null);
@@ -160,6 +231,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [produtos, setProdutos] = useState<Produto[]>(initialProdutos);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>(initialLancamentos);
   const [vendasDoDia, setVendasDoDia] = useState<VendaRegistro[]>([]);
+  const [allVendas, setAllVendas] = useState<VendaRegistro[]>([]);
   const [historicoProdutosVendidos, setHistoricoProdutosVendidos] = useState<ProdutoVendido[]>([]);
   const [formasPagamento, setFormasPagamento] = useState<FormaPagamento[]>(initialFormasPagamento);
   const [usuarios, setUsuarios] = useState<AppUser[]>(initialUsers);
@@ -167,26 +239,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [contasBancarias, setContasBancarias] = useState<ContaBancaria[]>([]);
   const [movimentacoes, setMovimentacoes] = useState<MovimentacaoBancaria[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>(initialClientes);
+  const [contasPagarReceber, setContasPagarReceber] = useState<ContaPagarReceber[]>([]);
+  const [priceHistory, setPriceHistory] = useState<PriceHistory[]>([]);
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
+  const [ordensCompra, setOrdensCompra] = useState<OrdemCompra[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+
+  const addAuditLog = (log: Omit<AuditLog, "id" | "timestamp">) => {
+    setAuditLogs(prev => [{
+      ...log,
+      id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+      timestamp: new Date().toISOString(),
+    }, ...prev]);
+  };
+
+  const addPriceHistory = (entry: Omit<PriceHistory, "id">) => {
+    setPriceHistory(prev => [...prev, { ...entry, id: Date.now().toString() }]);
+  };
 
   const registrarMovimentacao = (contaId: string, tipo: "entrada" | "saida", valor: number, descricao: string, origem: MovimentacaoBancaria["origem"], origemId: string) => {
     setContasBancarias(prev => {
       const conta = prev.find(c => c.id === contaId);
       if (!conta) return prev;
       const novoSaldo = tipo === "entrada" ? conta.saldoAtual + valor : conta.saldoAtual - valor;
-      
       const mov: MovimentacaoBancaria = {
         id: Date.now().toString(),
         contaBancariaId: contaId,
-        tipo,
-        valor,
-        descricao,
-        origem,
-        origemId,
+        tipo, valor, descricao, origem, origemId,
         data: new Date().toISOString().split("T")[0],
         saldoApos: novoSaldo,
       };
       setMovimentacoes(p => [...p, mov]);
-
       return prev.map(c => c.id === contaId ? { ...c, saldoAtual: novoSaldo } : c);
     });
   };
@@ -194,22 +277,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const registrarVenda = (params: RegistrarVendaParams) => {
     const { total, itens, produtosVendidos, formaPagamentoId, formaPagamentoNome, clienteId, clienteNome, desconto, observacao } = params;
 
-    // 1. Validate stock BEFORE anything
     for (const item of produtosVendidos) {
       const produto = produtos.find(p => p.id === item.id);
-      if (!produto || produto.estoque < item.quantidade) {
-        return; // Should never happen due to UI validation
-      }
+      if (!produto || produto.estoque < item.quantidade) return;
     }
 
-    // 2. Decrement stock atomically
     setProdutos(prev => prev.map(p => {
       const vendido = produtosVendidos.find(v => v.id === p.id);
       if (!vendido) return p;
       return { ...p, estoque: p.estoque - vendido.quantidade };
     }));
 
-    // 3. Update sales history
     setHistoricoProdutosVendidos(prev => {
       const next = [...prev];
       produtosVendidos.forEach(v => {
@@ -229,46 +307,71 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const hoje = new Date().toISOString().split("T")[0];
     const vendaId = Date.now().toString();
 
-    // 4. Create financial entry
     const forma = formasPagamento.find(f => f.id === formaPagamentoId);
     const contaBancariaId = forma?.contaBancariaId;
     const contaBancaria = contasBancarias.find(c => c.id === contaBancariaId);
 
     setLancamentos(prev => [...prev, {
-      id: vendaId,
-      tipo: "entrada",
+      id: vendaId, tipo: "entrada",
       descricao: `Venda PDV #${vendaId.slice(-4)}${clienteNome ? ` — ${clienteNome}` : ""}`,
-      valor: total,
-      categoria: "Vendas",
-      data: hoje,
-      formaPagamentoId,
-      formaPagamentoNome,
-      contaBancariaId,
-      contaBancariaNome: contaBancaria?.nome,
+      valor: total, categoria: "Vendas", data: hoje,
+      formaPagamentoId, formaPagamentoNome,
+      contaBancariaId, contaBancariaNome: contaBancaria?.nome,
     }]);
 
-    // 5. Record bank movement if linked
     if (contaBancariaId) {
       registrarMovimentacao(contaBancariaId, "entrada", total, `Venda PDV #${vendaId.slice(-4)}`, "venda", vendaId);
     }
 
-    // 6. Record sale
-    setVendasDoDia(prev => [...prev, {
-      id: vendaId,
-      data: hoje,
-      total,
-      itens,
-      formaPagamentoId,
-      formaPagamentoNome,
-      clienteId,
-      clienteNome,
-      desconto,
-      observacao,
+    const vendaRecord: VendaRegistro = {
+      id: vendaId, data: hoje, total, itens,
+      formaPagamentoId, formaPagamentoNome,
+      clienteId, clienteNome, desconto, observacao,
       produtos: produtosVendidos.map(v => {
         const produto = produtos.find(p => p.id === v.id);
         return { produtoId: v.id, nome: produto?.nome || "", quantidade: v.quantidade, precoUnitario: v.precoUnitario, desconto: v.desconto };
       }),
+    };
+
+    setVendasDoDia(prev => [...prev, vendaRecord]);
+    setAllVendas(prev => [...prev, vendaRecord]);
+
+    addAuditLog({
+      userId: currentUser.id, userName: currentUser.nome,
+      action: "criar", entity: "venda", entityId: vendaId,
+      oldValue: null,
+      newValue: { total, itens, formaPagamentoNome, clienteNome },
+    });
+  };
+
+  const receberOrdemCompra = (ordemId: string) => {
+    const ordem = ordensCompra.find(o => o.id === ordemId);
+    if (!ordem || ordem.status !== "enviada") return;
+
+    setOrdensCompra(prev => prev.map(o => o.id === ordemId ? { ...o, status: "recebida" as const } : o));
+
+    setProdutos(prev => prev.map(p => {
+      const item = ordem.itens.find(i => i.produtoId === p.id);
+      if (!item) return p;
+      return { ...p, estoque: p.estoque + item.quantidade };
+    }));
+
+    const contaId = Date.now().toString();
+    setContasPagarReceber(prev => [...prev, {
+      id: contaId, tipo: "pagar",
+      descricao: `Ordem de Compra #${ordemId.slice(-4)} — ${ordem.fornecedorNome}`,
+      valor: ordem.total,
+      vencimento: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+      status: "aberto", categoria: "Fornecedores",
+      observacao: `Ordem de compra recebida de ${ordem.fornecedorNome}`,
     }]);
+
+    addAuditLog({
+      userId: currentUser.id, userName: currentUser.nome,
+      action: "receber", entity: "ordem_compra", entityId: ordemId,
+      oldValue: { status: "enviada" },
+      newValue: { status: "recebida", estoqueIncrementado: true },
+    });
   };
 
   const fecharCaixa = () => {
@@ -276,17 +379,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const total = vendasDoDia.reduce((s, v) => s + v.total, 0);
     const vendas = vendasDoDia.length;
     setVendasDoDia([]);
+
+    addAuditLog({
+      userId: currentUser.id, userName: currentUser.nome,
+      action: "fechar_caixa", entity: "caixa", entityId: Date.now().toString(),
+      oldValue: null, newValue: { total, vendas },
+    });
+
     return { total, vendas };
   };
 
   return (
     <StoreContext.Provider value={{
-      produtos, setProdutos, lancamentos, setLancamentos, vendasDoDia,
+      produtos, setProdutos, lancamentos, setLancamentos, vendasDoDia, allVendas,
       registrarVenda, fecharCaixa, historicoProdutosVendidos,
       formasPagamento, setFormasPagamento,
       usuarios, setUsuarios, currentUser, setCurrentUser,
       contasBancarias, setContasBancarias, movimentacoes, registrarMovimentacao,
       clientes, setClientes,
+      contasPagarReceber, setContasPagarReceber,
+      priceHistory, addPriceHistory,
+      fornecedores, setFornecedores,
+      ordensCompra, setOrdensCompra, receberOrdemCompra,
+      auditLogs, addAuditLog,
     }}>
       {children}
     </StoreContext.Provider>
