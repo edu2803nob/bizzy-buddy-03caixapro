@@ -1,6 +1,7 @@
 import {
   LayoutDashboard, Users, UserCircle, ShoppingCart, Package,
   DollarSign, Wallet, Building2, CreditCard, Landmark,
+  FileBarChart, Receipt, Truck, ShoppingBag, Shield,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useStore } from "@/contexts/StoreContext";
@@ -16,10 +17,15 @@ const allItems = [
   { title: "PDV", url: "/pdv", icon: ShoppingCart, section: "principal", requires: "pdv" as const },
   { title: "Financeiro", url: "/financeiro", icon: DollarSign, section: "financeiro", requires: "financeiro" as const },
   { title: "Contas Bancárias", url: "/financeiro/contas-bancarias", icon: Landmark, section: "financeiro", requires: "financeiro" as const },
+  { title: "Contas a Pagar/Receber", url: "/financeiro/contas", icon: Receipt, section: "financeiro", requires: "financeiro" as const },
   { title: "Fechamento", url: "/fechamento", icon: Wallet, section: "financeiro", requires: "financeiro" as const },
-  { title: "Pagamentos", url: "/formas-pagamento", icon: CreditCard, section: "financeiro", requires: "admin" as const },
+  { title: "Lucratividade", url: "/relatorios/lucratividade", icon: FileBarChart, section: "financeiro", requires: "financeiro" as const },
+  { title: "Fornecedores", url: "/fornecedores", icon: Truck, section: "compras", requires: "admin" as const },
+  { title: "Ordens de Compra", url: "/compras", icon: ShoppingBag, section: "compras", requires: "admin" as const },
+  { title: "Pagamentos", url: "/formas-pagamento", icon: CreditCard, section: "admin", requires: "admin" as const },
   { title: "Empresas", url: "/empresas", icon: Building2, section: "admin", requires: "admin" as const },
   { title: "Usuários", url: "/usuarios", icon: UserCircle, section: "admin", requires: "admin" as const },
+  { title: "Auditoria", url: "/admin/auditoria", icon: Shield, section: "admin", requires: "admin" as const },
 ];
 
 export function AppSidebar() {
@@ -37,6 +43,7 @@ export function AppSidebar() {
   const sections = [
     { key: "principal", label: "Principal" },
     { key: "financeiro", label: "Financeiro" },
+    { key: "compras", label: "Compras" },
     { key: "admin", label: "Administração" },
   ];
 
@@ -58,9 +65,7 @@ export function AppSidebar() {
           if (items.length === 0) return null;
           return (
             <SidebarGroup key={section.key}>
-              <SidebarGroupLabel className="text-sidebar-muted text-[11px] uppercase tracking-wider">
-                {section.label}
-              </SidebarGroupLabel>
+              <SidebarGroupLabel className="text-sidebar-muted text-[11px] uppercase tracking-wider">{section.label}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {items.map(item => (
