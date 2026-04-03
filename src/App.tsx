@@ -15,6 +15,11 @@ import Empresas from "./pages/Empresas";
 import Usuarios from "./pages/Usuarios";
 import FormasPagamento from "./pages/FormasPagamento";
 import ContasBancarias from "./pages/ContasBancarias";
+import ContasPagarReceber from "./pages/ContasPagarReceber";
+import Lucratividade from "./pages/Lucratividade";
+import Fornecedores from "./pages/Fornecedores";
+import OrdensCompra from "./pages/OrdensCompra";
+import Auditoria from "./pages/Auditoria";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,7 +42,12 @@ const App = () => (
             <Route path="/pdv" element={<LayoutPage><PDV /></LayoutPage>} />
             <Route path="/financeiro" element={<LayoutPage><Financeiro /></LayoutPage>} />
             <Route path="/financeiro/contas-bancarias" element={<LayoutPage><ContasBancarias /></LayoutPage>} />
+            <Route path="/financeiro/contas" element={<LayoutPage><ContasPagarReceber /></LayoutPage>} />
             <Route path="/fechamento" element={<LayoutPage><Fechamento /></LayoutPage>} />
+            <Route path="/relatorios/lucratividade" element={<LayoutPage><Lucratividade /></LayoutPage>} />
+            <Route path="/fornecedores" element={<LayoutPage><Fornecedores /></LayoutPage>} />
+            <Route path="/compras" element={<LayoutPage><OrdensCompra /></LayoutPage>} />
+            <Route path="/admin/auditoria" element={<LayoutPage><Auditoria /></LayoutPage>} />
             <Route path="/empresas" element={<LayoutPage><Empresas /></LayoutPage>} />
             <Route path="/usuarios" element={<LayoutPage><Usuarios /></LayoutPage>} />
             <Route path="/formas-pagamento" element={<LayoutPage><FormasPagamento /></LayoutPage>} />
