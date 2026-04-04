@@ -168,12 +168,15 @@ const initialClientes: Cliente[] = [
   { id: "3", nome: "Ana Oliveira", telefone: "(31) 97654-3210", email: "ana@email.com", cpf: "456.789.123-00", origem: "Google", observacao: "" },
 ];
 
+const today = new Date().toISOString().split("T")[0];
+const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().split("T")[0];
+
 const initialLancamentos: Lancamento[] = [
-  { id: "1", tipo: "entrada", descricao: "Venda PDV #1042", valor: 547.8, categoria: "Vendas", data: "2024-03-20", formaPagamentoId: "fp1", formaPagamentoNome: "Dinheiro" },
-  { id: "2", tipo: "entrada", descricao: "Venda PDV #1043", valor: 329.7, categoria: "Vendas", data: "2024-03-20", formaPagamentoId: "fp2", formaPagamentoNome: "Pix" },
-  { id: "3", tipo: "saida", descricao: "Aluguel", valor: 2800, categoria: "Fixas", data: "2024-03-15" },
-  { id: "4", tipo: "saida", descricao: "Fornecedor tecidos", valor: 1450, categoria: "Fornecedores", data: "2024-03-18" },
-  { id: "5", tipo: "entrada", descricao: "Receita manual - consultoria", valor: 1200, categoria: "Serviços", data: "2024-03-19", formaPagamentoId: "fp3", formaPagamentoNome: "Cartão de Crédito" },
+  { id: "1", tipo: "entrada", descricao: "Venda PDV #1042", valor: 547.8, categoria: "Vendas", data: today, formaPagamentoId: "fp1", formaPagamentoNome: "Dinheiro" },
+  { id: "2", tipo: "entrada", descricao: "Venda PDV #1043", valor: 329.7, categoria: "Vendas", data: today, formaPagamentoId: "fp2", formaPagamentoNome: "Pix" },
+  { id: "3", tipo: "saida", descricao: "Aluguel", valor: 2800, categoria: "Fixas", data: daysAgo(5) },
+  { id: "4", tipo: "saida", descricao: "Fornecedor tecidos", valor: 1450, categoria: "Fornecedores", data: daysAgo(2) },
+  { id: "5", tipo: "entrada", descricao: "Receita manual - consultoria", valor: 1200, categoria: "Serviços", data: daysAgo(1), formaPagamentoId: "fp3", formaPagamentoNome: "Cartão de Crédito" },
 ];
 
 interface RegistrarVendaParams {
